@@ -1,0 +1,95 @@
+version: '3'
+services:
+  apipark-mysql:
+    image: mysql:8.0.37
+    privileged: true
+    restart: always
+    container_name: apipark-mysql
+    hostname: apipark-mysql
+    command:
+      - "--character-set-server=utf8mb4"
+      - "--collation-server=utf8mb4_unicode_ci"
+    ports:
+      - "33306:3306"
+    environment:
+      - MYSQL_ROOT_PASSWORD=Sjtu_5022
+      - MYSQL_DATABASE=apipark
+    volumes:
+      - /var/lib/apipark/mysql:/var/lib/mysql
+    networks:
+      - apipark
+  apipark:
+    image: apipark/apipark:v1.2.0-beta
+    container_name: apipark
+    privileged: true
+    restart: always
+    networks:
+      - apipark
+    ports:
+      - "18288:8288"
+    depends_on:
+      - apipark-mysql
+    environment:
+      - MYSQL_USER_NAME=root
+      - MYSQL_PWD=Sjtu_5022
+      - MYSQL_IP=apipark-mysql
+      - MYSQL_PORT=3306                 #mysql port
+      - MYSQL_DB="apipark"
+      - ERROR_DIR=work/logs  # Directory for placing logs
+      - ERROR_FILE_NAME=error.log          # Error log file name
+      - ERROR_LOG_LEVEL=info               # Error log level, options: panic, fatal, error, warning, info, debug, trace. If unspecified or invalid, default is info
+      - ERROR_EXPIRE=7d                    # Error log expiration time, default is in days, d|days, h|hours. Invalid configuration defaults to 7d
+      - ERROR_PERIOD=day                   # Error log rotation period, supports only day, hour
+      - REDIS_ADDR=apipark-redis:6379      # Redis cluster address, separated by commas
+      - REDIS_PWD=Sjtu_5022           # Redis password
+      - ADMIN_PASSWORD=Sjtu_5022
+  influxdb2:
+    image: influxdb:2.6
+    privileged: true
+    restart: always
+    container_name: influxdb2
+    hostname: influxdb2
+    ports:
+      - "8086:8086"
+    volumes:
+      - /var/lib/apipark/influxdb2:/var/lib/influxdb2
+    networks:
+      - apipark
+  apipark-redis:
+    container_name: apipark-redis
+    image: redis:7.2.4
+    hostname: apipark-redis
+    privileged: true
+    restart: always
+    ports:
+      - 6379:6379
+    command:
+      - bash
+      - -c
+      - "redis-server --protected-mode yes --logfile redis.log --appendonly no --port 6379 --requirepass {REDIS_PWD}"
+    networks:
+      - apipark
+  apipark-apinto:
+    image: eolinker/apinto-gateway
+    container_name: apipark-apinto
+    privileged: true
+    restart: always
+    command: 
+      - ./start.sh
+    ports:
+      - "8099:8099"
+      - "9400:9400"
+      - "9401:9401"
+    volumes:
+      - /var/lib/apipark/apinto/data:/var/lib/apinto
+      - /var/lib/apipark/apinto/log:/var/log/apinto
+      - ${PWD}/config.yml:/etc/apinto/config.yml
+    networks:
+      - apipark
+networks:
+  apipark:
+    driver: bridge
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.100.0.0/24
