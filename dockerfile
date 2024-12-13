@@ -14,7 +14,7 @@ COPY . .
 
 # 构建前端代码（如果适用）
 WORKDIR /app/frontend
-RUN yarn install && yarn build  # 确保这里生成 dist 文件
+RUN yarn install && yarn build && ls -l /app/frontend/dist  # 确保这里生成 dist 文件
 
 # 返回工作目录并构建 Go 项目
 WORKDIR /app
@@ -24,5 +24,11 @@ RUN go build -o out
 # 运行阶段
 FROM debian:bookworm-slim
 WORKDIR /app
+
+# 复制 Go 构建的输出文件
 COPY --from=builder /app/out /app/out
+
+# 复制前端构建的结果
+COPY --from=builder /app/frontend/dist /app/frontend/dist
+
 CMD ["./out"]
