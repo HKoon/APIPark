@@ -99,6 +99,9 @@ func (i *imlAuthorizationModule) getApplications(ctx context.Context, appIds []s
 					Expire:         a.ExpireTime,
 					Config:         authCfg,
 					HideCredential: a.HideCredential,
+					Label: map[string]string{
+						"authorization": a.UUID,
+					},
 				}
 			}),
 		}
@@ -153,6 +156,9 @@ func (i *imlAuthorizationModule) online(ctx context.Context, s *service.Service)
 				Expire:         a.ExpireTime,
 				Config:         authCfg,
 				HideCredential: a.HideCredential,
+				Label: map[string]string{
+					"authorization": a.UUID,
+				},
 			}
 		}),
 	}

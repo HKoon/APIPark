@@ -3,6 +3,10 @@ package core
 import (
 	"net/http"
 
+	"github.com/APIParkLab/APIPark/controller/log"
+
+	"github.com/APIParkLab/APIPark/controller/strategy"
+
 	"github.com/APIParkLab/APIPark/controller/ai"
 	ai_api "github.com/APIParkLab/APIPark/controller/ai-api"
 	"github.com/APIParkLab/APIPark/controller/monitor"
@@ -72,6 +76,7 @@ type plugin struct {
 	aiAPIController             ai_api.IAPIController                              `autowired:""`
 	apiDocController            router.IAPIDocController                           `autowired:""`
 	subscribeController         subscribe.ISubscribeController                     `autowired:""`
+	strategyController          strategy.IStrategyController                       `autowired:""`
 	appAuthorizationController  application_authorization.IAuthorizationController `autowired:""`
 	releaseController           release.IReleaseController                         `autowired:""`
 	roleController              role.IRoleController                               `autowired:""`
@@ -84,6 +89,7 @@ type plugin struct {
 	aiProviderController        ai.IProviderController                             `autowired:""`
 	settingController           system.ISettingController                          `autowired:""`
 	initController              system.IInitController                             `autowired:""`
+	logController               log.ILogController                                 `autowired:""`
 	apis                        []pm3.Api
 }
 
@@ -105,6 +111,8 @@ func (p *plugin) OnComplete() {
 	p.apis = append(p.apis, p.commonApis()...)
 	p.apis = append(p.apis, p.systemApis()...)
 	p.apis = append(p.apis, p.aiAPIs()...)
+	p.apis = append(p.apis, p.strategyApis()...)
+	p.apis = append(p.apis, p.logApis()...)
 }
 
 func (p *plugin) Name() string {

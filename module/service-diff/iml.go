@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/APIParkLab/APIPark/service/strategy"
+
 	"github.com/APIParkLab/APIPark/service/service"
 
 	"github.com/APIParkLab/APIPark/service/api"
@@ -23,6 +25,7 @@ type imlServiceDiff struct {
 	apiDocService   api_doc.IAPIDocService    `autowired:""`
 	upstreamService upstream.IUpstreamService `autowired:""`
 	releaseService  release.IReleaseService   `autowired:""`
+	strategyService strategy.IStrategyService `autowired:""`
 	clusterService  cluster.IClusterService   `autowired:""`
 }
 
@@ -79,6 +82,34 @@ func (m *imlServiceDiff) getBaseInfo(ctx context.Context, serviceId, baseRelease
 
 	return base, nil
 }
+
+func (m *imlServiceDiff) latestStrategyCommits(ctx context.Context, serviceId string) ([]*commit.Commit[strategy.Commit], error) {
+	list, err := m.strategyService.All(ctx, 2, serviceId)
+	if err != nil {
+		return nil, fmt.Errorf("get latest strategy failed:%w", err)
+	}
+
+	return utils.SliceToSlice(list, func(s *strategy.Strategy) *commit.Commit[strategy.Commit] {
+		key := fmt.Sprintf("service-%s", s.Id)
+		return &commit.Commit[strategy.Commit]{
+			Target: s.Id,
+			Key:    key,
+			Data: &strategy.Commit{
+				Id:       s.Id,
+				Name:     s.Name,
+				Priority: s.Priority,
+				Filters:  s.Filters,
+				Config:   s.Config,
+				Driver:   s.Driver,
+				IsStop:   s.IsStop,
+				Version:  s.UpdateAt.Format("20060102150405"),
+			},
+		}
+	}, func(s *strategy.Strategy) bool {
+		return !s.IsDelete
+	}), nil
+}
+
 func (m *imlServiceDiff) DiffForLatest(ctx context.Context, serviceId string, baseRelease string) (*service_diff.Diff, bool, error) {
 	serviceInfo, err := m.serviceService.Get(ctx, serviceId)
 	if err != nil {
@@ -87,6 +118,9 @@ func (m *imlServiceDiff) DiffForLatest(ctx context.Context, serviceId string, ba
 	apis, err := m.apiService.ListForService(ctx, serviceId)
 	if err != nil {
 		return nil, false, err
+	}
+	if len(apis) < 1 {
+		return nil, false, fmt.Errorf("api not found")
 	}
 
 	apiIds := utils.SliceToSlice(apis, func(i *api.API) string {
@@ -122,12 +156,17 @@ func (m *imlServiceDiff) DiffForLatest(ctx context.Context, serviceId string, ba
 		return nil, false, err
 	}
 
-	upstreamCommits, err := m.upstreamService.ListLatestCommit(ctx, serviceId)
+	upstreamCommits, err := m.upstreamService.ListLatestCommit(ctx, cluster.DefaultClusterID, serviceId)
 	if err != nil {
 		return nil, false, err
 	}
 	if len(upstreamCommits) == 0 && serviceInfo.Kind == service.RestService {
 		return nil, false, fmt.Errorf("upstream not found")
+	}
+
+	strategyCommits, err := m.latestStrategyCommits(ctx, serviceId)
+	if err != nil {
+		return nil, false, err
 	}
 
 	base, err := m.getBaseInfo(ctx, serviceId, baseRelease)
@@ -140,6 +179,7 @@ func (m *imlServiceDiff) DiffForLatest(ctx context.Context, serviceId string, ba
 		apiProxyCommits:   proxy,
 		apiDocCommits:     apiDocCommits,
 		upstreamCommits:   upstreamCommits,
+		strategyCommits:   strategyCommits,
 	}
 	clusters, err := m.clusterService.List(ctx)
 	if err != nil {
@@ -155,26 +195,26 @@ func (m *imlServiceDiff) getReleaseInfo(ctx context.Context, releaseId string) (
 	if err != nil {
 		return nil, err
 	}
-	apiRequestCommitIds := utils.SliceToSlice(commits, func(i *release.ProjectCommits) string {
-		return i.Target
-	}, func(c *release.ProjectCommits) bool {
-		return c.Type == release.CommitApiRequest
-	})
-	apiProxyCommitIds := utils.SliceToSlice(commits, func(i *release.ProjectCommits) string {
-		return i.Commit
-	}, func(c *release.ProjectCommits) bool {
-		return c.Type == release.CommitApiProxy
-	})
-	apiDocumentCommitIds := utils.SliceToSlice(commits, func(i *release.ProjectCommits) string {
-		return i.Commit
-	}, func(c *release.ProjectCommits) bool {
-		return c.Type == release.CommitApiDocument
-	})
-	upstreamCommitIds := utils.SliceToSlice(commits, func(i *release.ProjectCommits) string {
-		return i.Commit
-	}, func(c *release.ProjectCommits) bool {
-		return c.Type == release.CommitUpstream
-	})
+	apiRequestCommitIds := make([]string, 0)
+	apiProxyCommitIds := make([]string, 0)
+	apiDocumentCommitIds := make([]string, 0)
+	upstreamCommitIds := make([]string, 0)
+	strategyCommitIds := make([]string, 0)
+	for _, c := range commits {
+		switch c.Type {
+		case release.CommitApiRequest:
+			apiRequestCommitIds = append(apiRequestCommitIds, c.Commit)
+		case release.CommitApiProxy:
+			apiProxyCommitIds = append(apiProxyCommitIds, c.Commit)
+		case release.CommitApiDocument:
+			apiDocumentCommitIds = append(apiDocumentCommitIds, c.Commit)
+		case release.CommitUpstream:
+			upstreamCommitIds = append(upstreamCommitIds, c.Commit)
+		case release.CommitStrategy:
+			strategyCommitIds = append(strategyCommitIds, c.Commit)
+		}
+	}
+
 	var requestCommits []*commit.Commit[api.Request]
 	var proxyCommits []*commit.Commit[api.Proxy]
 	var documentCommits []*commit.Commit[api_doc.DocCommit]
@@ -203,13 +243,62 @@ func (m *imlServiceDiff) getReleaseInfo(ctx context.Context, releaseId string) (
 			return nil, err
 		}
 	}
+	var strategyCommits []*commit.Commit[strategy.Commit]
+	if len(strategyCommitIds) > 0 {
+		strategyCommits, err = m.strategyService.ListStrategyCommit(ctx, strategyCommitIds...)
+		if err != nil {
+			return nil, err
+		}
+	}
 
 	return &projectInfo{
 		apiRequestCommits: requestCommits,
 		apiProxyCommits:   proxyCommits,
 		apiDocCommits:     documentCommits,
 		upstreamCommits:   upstreamCommits,
+		strategyCommits:   strategyCommits,
 	}, nil
+}
+
+func (m *imlServiceDiff) diffStrategies(base, target []*commit.Commit[strategy.Commit]) []*service_diff.StrategyDiff {
+	baseStrategy := utils.SliceToMap(base, func(i *commit.Commit[strategy.Commit]) string {
+		return i.Target
+	})
+	targetStrategy := utils.SliceToMap(target, func(i *commit.Commit[strategy.Commit]) string {
+		return i.Target
+	})
+	out := make([]*service_diff.StrategyDiff, 0, len(target))
+	for _, tc := range targetStrategy {
+
+		//t := tc.Data
+		key := tc.Target
+		o := &service_diff.StrategyDiff{
+			Strategy: key,
+			Name:     tc.Data.Name,
+			Priority: tc.Data.Priority,
+			Change:   service_diff.ChangeTypeNone,
+			Status:   0,
+		}
+		b, hasB := baseStrategy[key]
+		if !hasB {
+			o.Change = service_diff.ChangeTypeNew
+		} else if tc.Data.Version != b.Data.Version {
+			o.Change = service_diff.ChangeTypeUpdate
+		}
+		delete(baseStrategy, key)
+		out = append(out, o)
+	}
+	for _, b := range baseStrategy {
+		o := &service_diff.StrategyDiff{
+			Strategy: b.Target,
+			Name:     b.Data.Name,
+			Priority: b.Data.Priority,
+			Change:   service_diff.ChangeTypeDelete,
+			Status:   0,
+		}
+		out = append(out, o)
+	}
+	return out
 }
 func (m *imlServiceDiff) diff(partitions []string, base, target *projectInfo) *service_diff.Diff {
 	out := &service_diff.Diff{
@@ -328,6 +417,7 @@ func (m *imlServiceDiff) diff(partitions []string, base, target *projectInfo) *s
 			}
 		}
 	}
+	out.Strategies = m.diffStrategies(base.strategyCommits, target.strategyCommits)
 
 	return out
 }
@@ -373,5 +463,13 @@ func (m *imlServiceDiff) Out(ctx context.Context, diff *service_diff.Diff) (*Dif
 			}),
 		})
 	}
+	out.Strategies = utils.SliceToSlice(diff.Strategies, func(i *service_diff.StrategyDiff) *StrategyDiffOut {
+		return &StrategyDiffOut{
+			Name:     i.Name,
+			Priority: i.Priority,
+			Change:   i.Change,
+			Status:   i.Status,
+		}
+	})
 	return out, nil
 }

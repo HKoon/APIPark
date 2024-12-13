@@ -5,7 +5,7 @@ import { $t } from "@common/locales";
 import { StrategyStatusEnum, StrategyStatusColorClass } from "@common/const/policy/consts";
 
 
-export const DATA_MASSKING_TABLE_COLUMNS: PageProColumns<any>[] = [
+export const DATA_MASKING_TABLE_COLUMNS: PageProColumns<any>[] = [
   {
     title: ('策略名称'),
     dataIndex: 'name',
@@ -27,7 +27,7 @@ export const DATA_MASSKING_TABLE_COLUMNS: PageProColumns<any>[] = [
     filters: true,
     onFilter: false ,
     ellipsis: true,
-    width: 140,
+    width: 110,
     valueEnum: new Map(
       Object.keys(StrategyStatusEnum).map(key=>
         [key,
@@ -40,6 +40,7 @@ export const DATA_MASSKING_TABLE_COLUMNS: PageProColumns<any>[] = [
     filters: true,
     onFilter: false ,
     ellipsis: true,
+    width: 90,
     valueEnum: {
       false: { text: <span className="text-status_success">{$t('启用')}</span> },
       true: { text: <span className="text-status_fail">{$t('禁用')}</span> }
@@ -53,7 +54,8 @@ export const DATA_MASSKING_TABLE_COLUMNS: PageProColumns<any>[] = [
   {
     title: ('处理数'),
     dataIndex: 'processedTotal',
-    ellipsis: true
+    ellipsis: true,
+    width: 80,
   },
   {
     title: ('更新者'),
@@ -69,3 +71,41 @@ export const DATA_MASSKING_TABLE_COLUMNS: PageProColumns<any>[] = [
     sorter: (a, b) => frontendTimeSorter(a, b, 'updateTime')
   },
 ];
+export const DATA_MASKING_TABLE_LOG_COLUMNS: PageProColumns<any>[] = [
+  {
+    title: ('服务'),
+    dataIndex: ['service', 'name'],
+    ellipsis: true,
+    width: 80
+  },
+  {
+    title: ('调用地址'),
+    dataIndex: 'url',
+    ellipsis: true,
+    width: 200
+  },
+  {
+    title: ('消费者 IP'),
+    dataIndex: 'remote_ip',
+    ellipsis: true,
+    width: 100
+  },
+  {
+    title: ('消费者'),
+    dataIndex: ['consumer', 'name'],
+    ellipsis: true,
+    width: 80
+  },
+  {
+    title: ('鉴权名称'),
+    dataIndex: ['authorization', 'name'],
+    ellipsis: true,
+    width: 100
+  },
+  {
+    title: ('时间'),
+    dataIndex: 'record_time',
+    width: 110,
+    ellipsis: true
+  },
+]
