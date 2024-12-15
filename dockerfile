@@ -1,29 +1,41 @@
-# 使用官方的 Golang 镜像作为基础镜像
-FROM golang:1.20-alpine AS builder
+# 使用多阶段构建以优化镜像大小
 
-# 设置工作目录
+# 阶段 1: 构建前端
+FROM node:18 AS frontend-builder
+WORKDIR /app/frontend
+
+# 复制前端代码
+COPY frontend/package*.json ./
+RUN npm install
+
+COPY frontend ./
+RUN npm run build
+
+# 阶段 2: 构建后端
+FROM golang:1.20 AS backend-builder
 WORKDIR /app
 
-# 复制项目文件
-COPY . .
+# 复制后端代码
+COPY . ./
+
+# 复制前端构建产物到后端目录
+COPY --from=frontend-builder /app/frontend/dist ./frontend/dist
 
 # 下载依赖
 RUN go mod download
 
-# 构建可执行文件
-RUN go build -o apipark
+# 构建后端服务
+RUN go build -o out
 
-# 使用更小的基础镜像
+# 阶段 3: 最终镜像
 FROM alpine:latest
-
-# 设置工作目录
 WORKDIR /root/
 
-# 从构建阶段复制可执行文件
-COPY --from=builder /app/apipark .
+# 复制可执行文件
+COPY --from=backend-builder /app/out .
 
-# 暴露服务端口（根据 APIPark 的配置，假设为 8080）
+# 暴露端口（假设服务运行在 8080 端口）
 EXPOSE 8080
 
-# 运行可执行文件
-CMD ["./apipark"]
+# 启动服务
+CMD ["./out"]
