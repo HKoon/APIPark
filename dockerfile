@@ -26,6 +26,15 @@ RUN go mod download
 # 构建后端服务
 RUN go build -o out
 
+# 确认前端构建是否生成 dist
+RUN ls -alh /app/frontend/dist
+
+# 确认 dist 是否正确复制到后端目录
+RUN ls -alh /app/dist
+
+# 确认 go build 阶段的 dist 文件夹存在
+RUN ls -alh /app/dist
+
 # 阶段 3: 最终运行环境
 FROM alpine:latest
 WORKDIR /root/
