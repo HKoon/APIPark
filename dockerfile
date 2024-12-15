@@ -1,19 +1,29 @@
-# 使用一个合适的基础镜像
-FROM ubuntu:20.04
+# 使用官方的 Golang 镜像作为基础镜像
+FROM golang:1.20-alpine AS builder
 
-# 设置时区（根据需要修改）
-ENV TZ=Asia/Shanghai
+# 设置工作目录
+WORKDIR /app
 
-# 更新并安装必要的依赖
-RUN apt-get update && \
-    apt-get install -y \
-    curl \
-    bash \
-    && rm -rf /var/lib/apt/lists/*
+# 复制项目文件
+COPY . .
 
-# 下载并执行 quick-start.sh 脚本
-RUN curl -sSO https://download.apipark.com/install/quick-start.sh && \
-    bash quick-start.sh
+# 下载依赖
+RUN go mod download
 
-# 设置容器启动时执行的命令
-CMD ["bash"]
+# 构建可执行文件
+RUN go build -o apipark
+
+# 使用更小的基础镜像
+FROM alpine:latest
+
+# 设置工作目录
+WORKDIR /root/
+
+# 从构建阶段复制可执行文件
+COPY --from=builder /app/apipark .
+
+# 暴露服务端口（根据 APIPark 的配置，假设为 8080）
+EXPOSE 8080
+
+# 运行可执行文件
+CMD ["./apipark"]
