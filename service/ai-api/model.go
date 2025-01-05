@@ -16,6 +16,7 @@ type API struct {
 	Timeout          int
 	Retry            int
 	Model            string
+	Provider         string
 	CreateAt         time.Time
 	UpdateAt         time.Time
 	Creator          string
@@ -33,7 +34,9 @@ type Create struct {
 	Timeout          int
 	Retry            int
 	Model            string
+	Provider         string
 	AdditionalConfig map[string]interface{}
+	Disable          bool
 }
 
 type Edit struct {
@@ -42,7 +45,9 @@ type Edit struct {
 	Description      *string
 	Timeout          *int
 	Retry            *int
+	Provider         *string
 	Model            *string
+	Disable          *bool
 	AdditionalConfig *map[string]interface{}
 }
 
@@ -64,6 +69,14 @@ func FromEntity(e *api.AiAPIInfo) *API {
 		UpdateAt:         e.UpdateAt,
 		Creator:          e.Creator,
 		Updater:          e.Updater,
+		Disable:          e.Disable,
 		AdditionalConfig: cfg,
 	}
+}
+
+type APIUse struct {
+	API         string
+	InputToken  int
+	OutputToken int
+	TotalToken  int
 }
